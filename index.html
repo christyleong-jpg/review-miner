@@ -316,6 +316,41 @@
 
   .card-actions { display: flex; gap: 4px; flex-shrink: 0; }
 
+  /* ── PHOTO THUMBNAILS ── */
+  .review-photos {
+    display: flex;
+    gap: 6px;
+    flex-wrap: wrap;
+    margin-bottom: 10px;
+  }
+
+  .review-thumb {
+    width: 64px;
+    height: 64px;
+    object-fit: cover;
+    border-radius: var(--radius);
+    border: 1px solid var(--border);
+    cursor: pointer;
+    transition: opacity var(--transition), border-color var(--transition);
+  }
+  .review-thumb:hover { opacity: 0.85; border-color: var(--border-strong); }
+
+  /* Lightbox */
+  .lightbox {
+    position: fixed; inset: 0;
+    background: rgba(0,0,0,0.85);
+    display: flex; align-items: center; justify-content: center;
+    z-index: 9998;
+    opacity: 0; pointer-events: none;
+    transition: opacity 200ms ease;
+  }
+  .lightbox.visible { opacity: 1; pointer-events: all; }
+  .lightbox img {
+    max-width: 90vw; max-height: 90vh;
+    border-radius: var(--radius);
+    box-shadow: 0 8px 40px rgba(0,0,0,0.4);
+  }
+
   .icon-btn {
     display: inline-flex; align-items: center; justify-content: center;
     width: 30px; height: 30px; border-radius: var(--radius);
@@ -438,6 +473,10 @@
       <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg>
       Saved
     </button>
+    <button class="btn btn-ghost" onclick="toggleMediaFilter()" id="mediaFilterBtn" title="Show reviews with photos only">
+      <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><polyline points="21 15 16 10 5 21"/></svg>
+      With photos
+    </button>
     <button class="btn btn-secondary" onclick="clearFilters()">Clear</button>
   </div>
 
@@ -455,6 +494,11 @@
   </div>
 
 </main>
+
+<!-- LIGHTBOX -->
+<div class="lightbox" id="lightbox" onclick="closeLightbox()">
+  <img id="lightboxImg" src="" alt="">
+</div>
 
 <!-- TOKEN MODAL -->
 <div class="modal-overlay" id="tokenModal">
@@ -484,6 +528,7 @@ const state = {
   filtered: [],
   savedIds: new Set(),
   showSavedOnly: false,
+  showMediaOnly: false,
   displayCount: 50,
   DISPLAY_STEP: 50,
   products: [],
@@ -634,6 +679,7 @@ function applyFilters() {
     if (sent === 'negative' && r.rating >= 4) return false;
     if (rating && String(r.rating) !== rating) return false;
     if (state.showSavedOnly && !state.savedIds.has(String(r.id))) return false;
+    if (state.showMediaOnly && !(r.pictures && r.pictures.length > 0)) return false;
     return true;
   });
 
@@ -683,6 +729,14 @@ function renderCard(r, query) {
   const body  = highlight(escHtml(r.body || ''), query);
   const stars = [1,2,3,4,5].map(i => `<span class="star ${i <= r.rating ? 'filled' : 'empty'}">${i <= r.rating ? '★' : '☆'}</span>`).join('');
 
+  const photos = (r.pictures || []).filter(p => p.urls?.original || p.url);
+  const photosHtml = photos.length > 0
+    ? `<div class="review-photos">${photos.map(p => {
+        const src = p.urls?.original || p.urls?.compact || p.url || '';
+        return `<img class="review-thumb" src="${escHtml(src)}" alt="Review photo" onclick="openLightbox('${escHtml(src)}')" loading="lazy">`;
+      }).join('')}</div>`
+    : '';
+
   return `
     <div class="review-card${isSaved ? ' saved' : ''}" id="card-${r.id}">
       <div class="card-header">
@@ -693,6 +747,7 @@ function renderCard(r, query) {
         <div class="stars">${stars}</div>
       </div>
       <div class="review-body">${body}</div>
+      ${photosHtml}
       <div class="card-footer">
         <span class="sentiment-dot ${sentiment}"></span>
         <span class="review-date">${date}</span>
@@ -756,6 +811,26 @@ function flashCopy(btn) {
 // ═══════════════════════════════════════
 // MISC
 // ═══════════════════════════════════════
+function toggleMediaFilter() {
+  state.showMediaOnly = !state.showMediaOnly;
+  const btn = document.getElementById('mediaFilterBtn');
+  btn.classList.toggle('btn-primary', state.showMediaOnly);
+  btn.classList.toggle('btn-ghost', !state.showMediaOnly);
+  applyFilters();
+}
+
+function openLightbox(src) {
+  const lb = document.getElementById('lightbox');
+  document.getElementById('lightboxImg').src = src;
+  lb.classList.add('visible');
+}
+
+function closeLightbox() {
+  document.getElementById('lightbox').classList.remove('visible');
+}
+
+document.addEventListener('keydown', e => { if (e.key === 'Escape') closeLightbox(); });
+
 function toggleSavedFilter() {
   state.showSavedOnly = !state.showSavedOnly;
   const btn = document.getElementById('savedFilterBtn');
@@ -769,8 +844,11 @@ function clearFilters() {
   document.getElementById('sentimentFilter').value = '';
   document.getElementById('ratingFilter').value = '';
   state.showSavedOnly = false;
+  state.showMediaOnly = false;
   document.getElementById('savedFilterBtn').classList.remove('btn-primary');
   document.getElementById('savedFilterBtn').classList.add('btn-ghost');
+  document.getElementById('mediaFilterBtn').classList.remove('btn-primary');
+  document.getElementById('mediaFilterBtn').classList.add('btn-ghost');
   applyFilters();
 }
 
