@@ -4,7 +4,7 @@ Internal tool for mining Judge.me customer reviews for landing page copywriting.
 
 ## What it does
 
-- Fetches all reviews from `thepurest.myshopify.com` via Judge.me API (paginated)
+- Fetches all reviews from `purestnest.myshopify.com` via Judge.me API (paginated)
 - Keyword search with inline highlight
 - Filter by sentiment, rating, product, and AI theme tag
 - AI theme tagging via Claude (batches 15 reviews at a time) — labels topics like eczema, dryness, scent, texture, fast results, etc.
