@@ -2,6 +2,7 @@ export default async function handler(req, res) {
   res.setHeader('Access-Control-Allow-Origin', '*');
   res.setHeader('Access-Control-Allow-Methods', 'GET, OPTIONS');
   res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
+  res.setHeader('Content-Type', 'application/json; charset=utf-8');
 
   if (req.method === 'OPTIONS') return res.status(200).end();
   if (req.method !== 'GET') return res.status(405).json({ error: 'Method not allowed' });
@@ -20,14 +21,16 @@ export default async function handler(req, res) {
 
   try {
     const upstream = await fetch(url.toString(), {
-      headers: { 'Accept': 'application/json', 'User-Agent': 'ThePurestCo-ReviewMiner/1.0' },
+      headers: { 'Accept': 'application/json; charset=utf-8', 'User-Agent': 'ThePurestCo-ReviewMiner/1.0' },
     });
     if (!upstream.ok) {
       const errorText = await upstream.text();
       return res.status(upstream.status).json({ error: `Judge.me API error: ${upstream.status}`, detail: errorText });
     }
-    const data = await upstream.json();
-    return res.status(200).json(data);
+    // Pass raw text through to preserve encoding exactly as received
+    const raw = await upstream.arrayBuffer();
+    const text = Buffer.from(raw).toString('utf-8');
+    return res.status(200).send(text);
   } catch (err) {
     return res.status(500).json({ error: 'Failed to reach Judge.me API', detail: err.message });
   }
