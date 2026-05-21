@@ -167,6 +167,55 @@
   .btn-green:hover { background: #326652; }
   .btn-green:disabled { opacity: 0.4; cursor: not-allowed; }
 
+  /* ── PRODUCT SEARCH DROPDOWN ── */
+  .product-search-wrap {
+    position: relative;
+    min-width: 260px;
+  }
+
+  .product-search-input-wrap { position: relative; }
+
+  .product-search-input-wrap .search-icon {
+    position: absolute; left: 10px; top: 50%; transform: translateY(-50%);
+    color: var(--text-muted); pointer-events: none;
+  }
+
+  .product-search-input {
+    width: 100%; font-family: var(--font-ui); font-size: 13px;
+    padding: 8px 12px 8px 32px;
+    border: 1px solid var(--border-strong); border-radius: var(--radius);
+    background: var(--bg-card); color: var(--text-primary);
+    outline: none; cursor: pointer;
+    transition: border-color var(--transition), box-shadow var(--transition);
+  }
+  .product-search-input:focus {
+    border-color: var(--accent-green);
+    box-shadow: 0 0 0 3px rgba(61,122,94,0.12);
+    cursor: text;
+  }
+
+  .product-dropdown {
+    position: absolute; top: calc(100% + 4px); left: 0; right: 0;
+    background: var(--bg-card);
+    border: 1px solid var(--border-strong);
+    border-radius: var(--radius);
+    box-shadow: var(--shadow-md);
+    z-index: 200;
+    max-height: 260px;
+    overflow-y: auto;
+  }
+
+  .product-option {
+    padding: 8px 12px; font-size: 13px;
+    color: var(--text-primary); cursor: pointer;
+    transition: background var(--transition);
+    white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+  }
+  .product-option:hover { background: var(--bg-hover); }
+  .product-option.selected { background: var(--accent-green-bg); color: var(--accent-green); font-weight: 500; }
+  .product-option.no-results { color: var(--text-muted); cursor: default; font-style: italic; }
+  .product-option.no-results:hover { background: transparent; }
+
   /* ── FETCH BAR (pre-load) ── */
   .fetch-bar {
     background: var(--bg-card);
@@ -428,9 +477,15 @@
   <!-- FETCH BAR -->
   <div class="fetch-bar">
     <span class="fetch-bar-label">Product</span>
-    <select class="select-input" id="productSelect" disabled>
-      <option value="">Loading products...</option>
-    </select>
+    <div class="product-search-wrap" id="productSearchWrap">
+      <div class="product-search-input-wrap">
+        <svg class="search-icon" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+        <input type="text" class="product-search-input" id="productSearchInput" placeholder="All products" autocomplete="off"
+          oninput="filterProductDropdown()" onfocus="openProductDropdown()" readonly>
+        <input type="hidden" id="productSelect" value="">
+      </div>
+      <div class="product-dropdown" id="productDropdown" style="display:none;"></div>
+    </div>
     <button class="btn btn-primary" id="fetchBtn" onclick="startFetch()" disabled>
       <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="1 4 1 10 7 10"/><path d="M3.51 15a9 9 0 1 0 .49-3"/></svg>
       Load Reviews
@@ -582,30 +637,81 @@ document.getElementById('tokenModal').addEventListener('click', e => { if (e.tar
 // LOAD PRODUCTS
 // ═══════════════════════════════════════
 async function loadProducts(token) {
-  const sel = document.getElementById('productSelect');
-  sel.disabled = true;
-  sel.innerHTML = '<option>Loading products...</option>';
+  const input = document.getElementById('productSearchInput');
+  input.placeholder = 'Loading products...';
+  input.disabled = true;
 
   try {
     const res = await fetch(`/api/products?api_token=${encodeURIComponent(token)}`);
     if (!res.ok) throw new Error(`HTTP ${res.status}`);
     const data = await res.json();
-    const products = data.products || [];
-    state.products = products;
+    // Strip [TAGS] from product names
+    state.products = (data.products || [])
+      .filter(p => {
+        const t = (p.title || p.name || '').toUpperCase();
+        return !t.includes('KOL') && !t.includes('GWP');
+      })
+      .map(p => ({ ...p, title: (p.title || p.name || 'Untitled').trim() }))
+      .sort((a, b) => a.title.localeCompare(b.title));
 
-    sel.innerHTML = '<option value="">All products</option>' +
-      products.map(p => `<option value="${escHtml(String(p.id))}">${escHtml(p.title || p.name || 'Untitled')}</option>`).join('');
-    sel.disabled = false;
+    input.placeholder = 'All products';
+    input.disabled = false;
+    input.readOnly = false;
     document.getElementById('fetchBtn').disabled = false;
-    showToast(`${products.length} products loaded`);
+    showToast(`${state.products.length} products loaded`);
   } catch (err) {
-    sel.innerHTML = '<option value="">Could not load products</option>';
-    sel.disabled = false;
+    input.placeholder = 'Could not load products';
+    input.disabled = false;
     document.getElementById('fetchBtn').disabled = false;
-    // Still allow fetch without product filter
     console.warn('Product load failed:', err.message);
   }
 }
+
+function openProductDropdown() {
+  const input = document.getElementById('productSearchInput');
+  input.select();
+  filterProductDropdown();
+  document.getElementById('productDropdown').style.display = 'block';
+}
+
+function filterProductDropdown() {
+  const query = document.getElementById('productSearchInput').value.toLowerCase();
+  const dropdown = document.getElementById('productDropdown');
+  const selectedId = document.getElementById('productSelect').value;
+
+  const matches = state.products.filter(p =>
+    !query || p.title.toLowerCase().includes(query)
+  );
+
+  if (matches.length === 0 && query) {
+    dropdown.innerHTML = `<div class="product-option no-results">No products found</div>`;
+  } else {
+    const allOption = `<div class="product-option${!selectedId ? ' selected' : ''}" onclick="selectProduct('', 'All products')">All products</div>`;
+    const options = matches.map(p =>
+      `<div class="product-option${String(p.id) === selectedId ? ' selected' : ''}" onclick="selectProduct('${escHtml(String(p.id))}', '${escHtml(p.title)}')">${escHtml(p.title)}</div>`
+    ).join('');
+    dropdown.innerHTML = allOption + options;
+  }
+
+  dropdown.style.display = 'block';
+}
+
+function selectProduct(id, title) {
+  document.getElementById('productSelect').value = id;
+  document.getElementById('productSearchInput').value = id ? title : '';
+  document.getElementById('productSearchInput').placeholder = id ? '' : 'All products';
+  document.getElementById('productDropdown').style.display = 'none';
+}
+
+// Close dropdown when clicking outside
+document.addEventListener('click', e => {
+  const wrap = document.getElementById('productSearchWrap');
+  if (wrap && !wrap.contains(e.target)) {
+    document.getElementById('productDropdown').style.display = 'none';
+  }
+});
+
+
 
 // ═══════════════════════════════════════
 // FETCH REVIEWS
