@@ -210,11 +210,30 @@
     color: var(--text-primary); cursor: pointer;
     transition: background var(--transition);
     white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+    display: flex; align-items: center; gap: 8px;
   }
   .product-option:hover { background: var(--bg-hover); }
   .product-option.selected { background: var(--accent-green-bg); color: var(--accent-green); font-weight: 500; }
   .product-option.no-results { color: var(--text-muted); cursor: default; font-style: italic; }
   .product-option.no-results:hover { background: transparent; }
+
+  .product-option input[type="checkbox"] {
+    accent-color: var(--accent-green);
+    width: 13px; height: 13px;
+    flex-shrink: 0; cursor: pointer;
+  }
+
+  .product-selection-footer {
+    padding: 8px 12px;
+    border-top: 1px solid var(--border);
+    display: flex; align-items: center; justify-content: space-between;
+    gap: 8px;
+  }
+
+  .product-selection-count {
+    font-size: 12px; color: var(--text-secondary);
+    font-family: var(--font-mono);
+  }
 
   /* ── FETCH BAR (pre-load) ── */
   .fetch-bar {
@@ -587,6 +606,7 @@ const state = {
   displayCount: 50,
   DISPLAY_STEP: 50,
   products: [],
+  selectedProductIds: new Set(),
 };
 
 const LS_TOKEN  = 'tpc_jm_token';
@@ -677,7 +697,6 @@ function openProductDropdown() {
 function filterProductDropdown() {
   const query = document.getElementById('productSearchInput').value.toLowerCase();
   const dropdown = document.getElementById('productDropdown');
-  const selectedId = document.getElementById('productSelect').value;
 
   const matches = state.products.filter(p =>
     !query || p.title.toLowerCase().includes(query)
@@ -686,14 +705,56 @@ function filterProductDropdown() {
   if (matches.length === 0 && query) {
     dropdown.innerHTML = `<div class="product-option no-results">No products found</div>`;
   } else {
-    const allOption = `<div class="product-option${!selectedId ? ' selected' : ''}" onclick="selectProduct('', 'All products')">All products</div>`;
-    const options = matches.map(p =>
-      `<div class="product-option${String(p.id) === selectedId ? ' selected' : ''}" onclick="selectProduct('${escHtml(String(p.id))}', '${escHtml(p.title)}')">${escHtml(p.title)}</div>`
-    ).join('');
-    dropdown.innerHTML = allOption + options;
+    const allChecked = state.selectedProductIds.size === 0;
+    const options = matches.map(p => {
+      const checked = state.selectedProductIds.has(String(p.id));
+      return `<div class="product-option${checked ? ' selected' : ''}" onclick="toggleProductSelection('${escHtml(String(p.id))}')">
+        <input type="checkbox" ${checked ? 'checked' : ''} onclick="event.stopPropagation();toggleProductSelection('${escHtml(String(p.id))}')" >
+        ${escHtml(p.title)}
+      </div>`;
+    }).join('');
+
+    const count = state.selectedProductIds.size;
+    const footer = `<div class="product-selection-footer">
+      <span class="product-selection-count">${count === 0 ? 'All products' : `${count} selected`}</span>
+      ${count > 0 ? `<button class="btn btn-ghost" style="padding:4px 8px;font-size:12px;" onclick="clearProductSelection()">Clear</button>` : ''}
+    </div>`;
+
+    dropdown.innerHTML = options + footer;
   }
 
   dropdown.style.display = 'block';
+}
+
+function toggleProductSelection(id) {
+  if (state.selectedProductIds.has(id)) {
+    state.selectedProductIds.delete(id);
+  } else {
+    state.selectedProductIds.add(id);
+  }
+  updateProductSearchLabel();
+  filterProductDropdown();
+}
+
+function clearProductSelection() {
+  state.selectedProductIds.clear();
+  updateProductSearchLabel();
+  filterProductDropdown();
+}
+
+function updateProductSearchLabel() {
+  const input = document.getElementById('productSearchInput');
+  const count = state.selectedProductIds.size;
+  if (count === 0) {
+    input.value = '';
+    input.placeholder = 'All products';
+  } else if (count === 1) {
+    const id = [...state.selectedProductIds][0];
+    const p = state.products.find(p => String(p.id) === id);
+    input.value = p ? p.title : '1 product selected';
+  } else {
+    input.value = `${count} products selected`;
+  }
 }
 
 function selectProduct(id, title) {
@@ -720,7 +781,7 @@ async function startFetch() {
   const token = getToken();
   if (!token) { openTokenModal(); return; }
 
-  const productId = document.getElementById('productSelect').value;
+  const productIds = [...state.selectedProductIds];
   state.reviews = [];
   state.filtered = [];
   state.displayCount = state.DISPLAY_STEP;
@@ -730,29 +791,42 @@ async function startFetch() {
   document.getElementById('fetchBtn').innerHTML = `<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="1 4 1 10 7 10"/><path d="M3.51 15a9 9 0 1 0 .49-3"/></svg> Fetching...`;
   document.getElementById('toolbar').style.display = 'none';
 
-
   const container = document.getElementById('reviewsContainer');
   container.innerHTML = `<div class="state-box"><div class="state-icon">⏳</div><div class="state-title">Fetching reviews...</div><div class="state-sub" id="fetchProgress">Starting...</div></div>`;
 
   try {
-    let page = 1;
-    let hasMore = true;
-    const CAP = productId ? 2000 : 1000; // smaller cap for all-products
+    // If no products selected, fetch all; otherwise fetch each product and merge
+    const targets = productIds.length > 0 ? productIds : [null];
 
-    while (hasMore) {
-      document.getElementById('fetchProgress').textContent = `Page ${page} — ${state.reviews.length} reviews fetched...`;
-      let url = `/api/reviews?api_token=${encodeURIComponent(token)}&page=${page}&per_page=100`;
-      if (productId) url += `&product_id=${encodeURIComponent(productId)}`;
+    for (const pid of targets) {
+      let page = 1;
+      let hasMore = true;
 
-      const res = await fetch(url);
-      if (!res.ok) { const e = await res.json().catch(() => ({})); throw new Error(e.error || `HTTP ${res.status}`); }
-      const data = await res.json();
-      const reviews = data.reviews || [];
-      state.reviews.push(...reviews);
+      while (hasMore) {
+        document.getElementById('fetchProgress').textContent =
+          `${pid ? `Product ${targets.indexOf(pid)+1}/${targets.length}` : 'All products'} — ${state.reviews.length} reviews fetched...`;
 
-      if (reviews.length < 100 || state.reviews.length >= CAP) hasMore = false;
-      else page++;
+        let url = `/api/reviews?api_token=${encodeURIComponent(token)}&page=${page}&per_page=100`;
+        if (pid) url += `&product_id=${encodeURIComponent(pid)}`;
+
+        const res = await fetch(url);
+        if (!res.ok) { const e = await res.json().catch(() => ({})); throw new Error(e.error || `HTTP ${res.status}`); }
+        const data = await res.json();
+        const reviews = data.reviews || [];
+        state.reviews.push(...reviews);
+
+        if (reviews.length < 100) hasMore = false;
+        else page++;
+      }
     }
+
+    // Deduplicate by review id (in case of overlap)
+    const seen = new Set();
+    state.reviews = state.reviews.filter(r => {
+      if (seen.has(r.id)) return false;
+      seen.add(r.id);
+      return true;
+    });
 
     applyFilters();
     updateStats();
