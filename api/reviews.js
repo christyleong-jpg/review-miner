@@ -18,7 +18,7 @@ export default async function handler(req, res) {
     return res.status(400).json({ error: 'api_token is required' });
   }
 
-  const SHOP_DOMAIN = 'thepurest.myshopify.com';
+  const SHOP_DOMAIN = 'purestnest.myshopify.com';
 
   const url = new URL('https://judge.me/api/v1/reviews');
   url.searchParams.set('api_token', api_token);
