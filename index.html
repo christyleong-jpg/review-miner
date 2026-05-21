@@ -26,8 +26,6 @@
     --accent-amber-bg: #FEF7E8;
     --accent-blue: #2B5F8A;
     --accent-blue-bg: #EBF3FA;
-    --accent-purple: #5B3E8A;
-    --accent-purple-bg: #F3EEFA;
     --star-filled: #C4922A;
     --star-empty: #D8D4C8;
     --radius: 6px;
@@ -235,86 +233,7 @@
   .stat-value.red { color: var(--accent-red); }
   .stat-value.amber { color: var(--accent-amber); }
 
-  /* ── AI OVERVIEW PANEL ── */
-  .overview-bar {
-    display: flex; align-items: center; gap: 10px;
-    background: var(--accent-purple-bg);
-    border: 1px solid #DDD0F2;
-    border-radius: var(--radius);
-    padding: 10px 14px;
-    margin-bottom: 12px;
-  }
 
-  .overview-bar-text { flex: 1; font-size: 13px; color: var(--accent-purple); font-weight: 500; }
-  .overview-bar-sub { font-size: 11px; font-weight: 400; color: var(--text-secondary); display: block; margin-top: 1px; }
-
-  .overview-panel {
-    background: var(--bg-card);
-    border: 1px solid #DDD0F2;
-    border-radius: var(--radius-lg);
-    padding: 20px 24px;
-    margin-bottom: 16px;
-    box-shadow: var(--shadow-sm);
-    display: none;
-  }
-  .overview-panel.visible { display: block; }
-
-  .overview-panel h3 {
-    font-size: 13px; font-weight: 600;
-    text-transform: uppercase; letter-spacing: 0.06em;
-    color: var(--accent-purple);
-    margin-bottom: 10px;
-    margin-top: 16px;
-  }
-  .overview-panel h3:first-child { margin-top: 0; }
-
-  .overview-panel p { font-size: 13px; color: var(--text-primary); line-height: 1.7; margin-bottom: 8px; }
-
-  .keyword-pills { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 8px; }
-
-  .keyword-pill {
-    font-size: 12px; font-weight: 500;
-    padding: 3px 10px; border-radius: 99px;
-    background: var(--accent-purple-bg);
-    color: var(--accent-purple);
-    border: 1px solid #E2D5F5;
-  }
-
-  .pull-quote {
-    font-family: var(--font-mono); font-size: 12px;
-    color: var(--text-secondary);
-    border-left: 3px solid #DDD0F2;
-    padding: 8px 12px;
-    margin-bottom: 8px;
-    background: var(--bg);
-    border-radius: 0 var(--radius) var(--radius) 0;
-    cursor: pointer;
-    transition: background var(--transition);
-    position: relative;
-  }
-  .pull-quote:hover { background: var(--accent-purple-bg); }
-  .pull-quote:hover::after {
-    content: 'Click to copy';
-    position: absolute; right: 10px; top: 50%; transform: translateY(-50%);
-    font-size: 10px; color: var(--accent-purple);
-    font-family: var(--font-ui);
-  }
-
-  .overview-loading {
-    display: flex; align-items: center; gap: 10px;
-    font-size: 13px; color: var(--accent-purple);
-    padding: 8px 0;
-  }
-
-  .spinner {
-    width: 16px; height: 16px;
-    border: 2px solid #DDD0F2;
-    border-top-color: var(--accent-purple);
-    border-radius: 50%;
-    animation: spin 0.8s linear infinite;
-    flex-shrink: 0;
-  }
-  @keyframes spin { to { transform: rotate(360deg); } }
 
   /* ── TOOLBAR ── */
   .toolbar { display: flex; gap: 8px; margin-bottom: 12px; align-items: center; flex-wrap: wrap; }
@@ -496,18 +415,6 @@
   <!-- LOADING BAR -->
   <div class="loading-bar-wrap" id="loadingBar" style="display:none;"><div class="loading-bar"></div></div>
 
-  <!-- AI OVERVIEW BAR -->
-  <div class="overview-bar" id="overviewBar" style="display:none;">
-    <div class="overview-bar-text">
-      ✦ AI Overview
-      <span class="overview-bar-sub">Summarises results, top keywords, complaints, and best pull quotes from loaded reviews.</span>
-    </div>
-    <button class="btn btn-green" id="overviewBtn" onclick="runOverview()">Generate Overview</button>
-  </div>
-
-  <!-- AI OVERVIEW PANEL -->
-  <div class="overview-panel" id="overviewPanel"></div>
-
   <!-- TOOLBAR -->
   <div class="toolbar" id="toolbar" style="display:none;">
     <div class="search-wrap">
@@ -553,7 +460,7 @@
 <div class="modal-overlay" id="tokenModal">
   <div class="modal">
     <div class="modal-title">Judge.me API Token</div>
-    <p class="modal-sub">Find your private API token in <a href="https://judge.me/shop/settings" target="_blank">Judge.me → Settings → API</a>. Stored locally in your browser.</p>
+
     <div class="input-group">
       <label class="input-label">Private API Token</label>
       <input type="password" class="text-input" id="tokenInput" placeholder="xxxxxxxxxxxxxxxxxxxx" autocomplete="off">
@@ -671,8 +578,7 @@ async function startFetch() {
   document.getElementById('fetchBtn').disabled = true;
   document.getElementById('fetchBtn').innerHTML = `<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="1 4 1 10 7 10"/><path d="M3.51 15a9 9 0 1 0 .49-3"/></svg> Fetching...`;
   document.getElementById('toolbar').style.display = 'none';
-  document.getElementById('overviewBar').style.display = 'none';
-  document.getElementById('overviewPanel').classList.remove('visible');
+
 
   const container = document.getElementById('reviewsContainer');
   container.innerHTML = `<div class="state-box"><div class="state-icon">⏳</div><div class="state-title">Fetching reviews...</div><div class="state-sub" id="fetchProgress">Starting...</div></div>`;
@@ -700,7 +606,6 @@ async function startFetch() {
     applyFilters();
     updateStats();
     document.getElementById('toolbar').style.display = 'flex';
-    document.getElementById('overviewBar').style.display = 'flex';
     showToast(`Loaded ${state.reviews.length} reviews`);
   } catch (err) {
     container.innerHTML = `<div class="state-box"><div class="state-icon">⚠️</div><div class="state-title">Fetch failed</div><div class="state-sub">${escHtml(err.message)}<br><br>Check your API token and try again.</div></div>`;
@@ -712,112 +617,6 @@ async function startFetch() {
   }
 }
 
-// ═══════════════════════════════════════
-// AI OVERVIEW
-// ═══════════════════════════════════════
-async function runOverview() {
-  if (state.reviews.length === 0) return;
-
-  const btn = document.getElementById('overviewBtn');
-  btn.disabled = true;
-  btn.textContent = 'Generating...';
-
-  const panel = document.getElementById('overviewPanel');
-  panel.classList.add('visible');
-  panel.innerHTML = `<div class="overview-loading"><div class="spinner"></div> Analysing ${state.filtered.length} reviews...</div>`;
-
-  // Use filtered reviews, sample up to 200 for API efficiency
-  const sample = state.filtered.slice(0, 200);
-  const reviewText = sample.map((r, i) =>
-    `[${i+1}] (${r.rating}★) ${(r.body || '').slice(0, 400)}`
-  ).join('\n\n');
-
-  const productName = (() => {
-    const sel = document.getElementById('productSelect');
-    return sel.options[sel.selectedIndex]?.text || 'all products';
-  })();
-
-  const prompt = `You are a senior copywriter analysing customer reviews for a skincare supplement brand called The Purest Co.
-
-Analyse these ${sample.length} customer reviews for ${productName} and return a JSON object with exactly these keys:
-
-{
-  "summary": "2-3 sentence plain English summary of what customers are experiencing and feeling overall",
-  "results": ["list of specific results or outcomes customers mention, e.g. 'skin cleared up in 2 weeks', 'reduced eczema flareups'"],
-  "keywords": ["top 12 most meaningful words or short phrases customers use, ordered by frequency/importance"],
-  "complaints": ["top complaints or negative themes, be specific"],
-  "pullQuotes": ["4-5 best verbatim short quotes useful for landing page copy, under 25 words each"]
-}
-
-Return ONLY valid JSON, no markdown, no explanation.
-
-Reviews:
-${reviewText}`;
-
-  try {
-    const res = await fetch('https://api.anthropic.com/v1/messages', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        model: 'claude-sonnet-4-20250514',
-        max_tokens: 1000,
-        messages: [{ role: 'user', content: prompt }],
-      }),
-    });
-
-    if (!res.ok) throw new Error(`API error ${res.status}`);
-    const data = await res.json();
-    const text = data.content?.find(c => c.type === 'text')?.text || '{}';
-    const clean = text.replace(/```json|```/g, '').trim();
-    const parsed = JSON.parse(clean);
-    renderOverview(parsed, sample.length);
-  } catch (err) {
-    panel.innerHTML = `<p style="color:var(--accent-red);font-size:13px;">Overview failed: ${escHtml(err.message)}</p>`;
-  } finally {
-    btn.disabled = false;
-    btn.textContent = 'Regenerate';
-  }
-}
-
-function renderOverview(data, count) {
-  const panel = document.getElementById('overviewPanel');
-
-  const results = (data.results || []).map(r => `<li style="font-size:13px;color:var(--text-primary);margin-bottom:4px;line-height:1.6;">${escHtml(r)}</li>`).join('');
-  const keywords = (data.keywords || []).map(k => `<span class="keyword-pill">${escHtml(k)}</span>`).join('');
-  const complaints = (data.complaints || []).map(c => `<li style="font-size:13px;color:var(--accent-red);margin-bottom:4px;line-height:1.6;">${escHtml(c)}</li>`).join('');
-  const quotes = (data.pullQuotes || []).map(q => `<div class="pull-quote" onclick="copyText('${escAttr(q)}', this)">${escHtml(q)}</div>`).join('');
-
-  panel.innerHTML = `
-    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:16px;">
-      <div style="font-size:13px;font-weight:600;color:var(--accent-purple);">✦ AI Overview</div>
-      <span style="font-family:var(--font-mono);font-size:11px;color:var(--text-muted);">Based on ${count} reviews</span>
-    </div>
-
-    <h3>Summary</h3>
-    <p>${escHtml(data.summary || '')}</p>
-
-    <h3>Results customers mention</h3>
-    <ul style="padding-left:16px;margin-bottom:8px;">${results}</ul>
-
-    <h3>Top keywords</h3>
-    <div class="keyword-pills">${keywords}</div>
-
-    <h3>Complaints & negatives</h3>
-    <ul style="padding-left:16px;margin-bottom:8px;">${complaints}</ul>
-
-    <h3>Pull quotes <span style="font-size:10px;font-weight:400;color:var(--text-muted);margin-left:4px;">click to copy</span></h3>
-    ${quotes}
-  `;
-}
-
-function copyText(text, el) {
-  navigator.clipboard.writeText(text).then(() => {
-    const orig = el.style.background;
-    el.style.background = 'var(--accent-purple-bg)';
-    showToast('Copied!');
-    setTimeout(() => el.style.background = orig, 1000);
-  });
-}
 
 // ═══════════════════════════════════════
 // FILTERS
@@ -1011,9 +810,6 @@ function escHtml(s) {
   return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#39;');
 }
 
-function escAttr(s) {
-  return String(s).replace(/'/g, "\\'").replace(/"/g, '&quot;');
-}
 
 bootstrap();
 </script>
