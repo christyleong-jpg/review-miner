@@ -10,23 +10,36 @@ export default async function handler(req, res) {
   if (!api_token) return res.status(400).json({ error: 'api_token is required' });
 
   const SHOP_DOMAIN = 'purestnest.myshopify.com';
-
-  // Judge.me products endpoint
-  const url = new URL('https://judge.me/api/v1/products');
-  url.searchParams.set('api_token', api_token);
-  url.searchParams.set('shop_domain', SHOP_DOMAIN);
-  url.searchParams.set('per_page', '100');
+  const allProducts = [];
+  let page = 1;
 
   try {
-    const upstream = await fetch(url.toString(), {
-      headers: { 'Accept': 'application/json', 'User-Agent': 'ThePurestCo-ReviewMiner/1.0' },
-    });
-    if (!upstream.ok) {
-      const errorText = await upstream.text();
-      return res.status(upstream.status).json({ error: `Judge.me API error: ${upstream.status}`, detail: errorText });
+    while (true) {
+      const url = new URL('https://judge.me/api/v1/products');
+      url.searchParams.set('api_token', api_token);
+      url.searchParams.set('shop_domain', SHOP_DOMAIN);
+      url.searchParams.set('per_page', '100');
+      url.searchParams.set('page', String(page));
+
+      const upstream = await fetch(url.toString(), {
+        headers: { 'Accept': 'application/json', 'User-Agent': 'ThePurestCo-ReviewMiner/1.0' },
+      });
+
+      if (!upstream.ok) {
+        const errorText = await upstream.text();
+        return res.status(upstream.status).json({ error: `Judge.me API error: ${upstream.status}`, detail: errorText });
+      }
+
+      const data = await upstream.json();
+      const products = data.products || [];
+      allProducts.push(...products);
+
+      if (products.length < 100) break;
+      page++;
+      if (page > 20) break; // safety cap at 2000 products
     }
-    const data = await upstream.json();
-    return res.status(200).json(data);
+
+    return res.status(200).json({ products: allProducts });
   } catch (err) {
     return res.status(500).json({ error: 'Failed to reach Judge.me API', detail: err.message });
   }
