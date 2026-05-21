@@ -1051,7 +1051,8 @@ function updateStats() {
 }
 
 function updateStatSaved() {
-  document.getElementById('statSaved').textContent = state.savedIds.size || '—';
+  const count = state.reviews.length > 0 ? state.savedIds.size || '—' : '—';
+  document.getElementById('statSaved').textContent = count;
 }
 
 function setLoading(on) { document.getElementById('loadingBar').style.display = on ? 'block' : 'none'; }
