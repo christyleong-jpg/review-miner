@@ -472,6 +472,43 @@
   .toast.show { transform: translateY(0); opacity: 1; }
 
 
+  /* ── THEME BROWSER ── */
+  .theme-browser {
+    background: var(--bg-card);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-lg);
+    padding: 14px 16px;
+    margin-bottom: 12px;
+    box-shadow: var(--shadow-sm);
+  }
+  .theme-browser-header {
+    display: flex; align-items: center; gap: 8px; margin-bottom: 10px; flex-wrap: wrap;
+  }
+  .theme-browser-label {
+    font-size: 11px; font-weight: 500; text-transform: uppercase;
+    letter-spacing: 0.06em; color: var(--text-muted);
+  }
+  .theme-active-tag {
+    font-size: 12px; font-weight: 500; padding: 2px 8px;
+    border-radius: 4px; background: var(--text-primary); color: #FFF;
+  }
+  .theme-groups { display: flex; flex-direction: column; gap: 8px; }
+  .theme-group { display: flex; align-items: flex-start; gap: 8px; flex-wrap: wrap; }
+  .theme-group-label {
+    font-size: 11px; font-weight: 600; color: var(--text-secondary);
+    white-space: nowrap; padding: 4px 0; min-width: 120px; letter-spacing: 0.01em;
+  }
+  .theme-pills { display: flex; flex-wrap: wrap; gap: 5px; }
+  .theme-pill {
+    font-size: 12px; padding: 3px 10px; border-radius: 99px;
+    border: 1px solid var(--border-strong); background: var(--bg-hover);
+    color: var(--text-secondary); cursor: pointer; transition: all var(--transition); white-space: nowrap;
+  }
+  .theme-pill:hover { background: var(--text-primary); color: #FFF; border-color: var(--text-primary); }
+  .theme-pill.active { background: var(--text-primary); color: #FFF; border-color: var(--text-primary); font-weight: 500; }
+  .theme-count { font-family: var(--font-mono); font-size: 10px; opacity: 0.65; margin-left: 3px; }
+  mark.theme-mark { background: #C7F0D8; color: var(--text-primary); border-radius: 2px; padding: 0 1px; }
+
   /* ── LOAD MORE ── */
   .load-more-bar { text-align: center; padding: 24px 0 8px; }
 
@@ -545,6 +582,16 @@
   <!-- LOADING BAR -->
   <div class="loading-bar-wrap" id="loadingBar" style="display:none;"><div class="loading-bar"></div></div>
 
+  </div>
+
+  <!-- THEME BROWSER -->
+  <div class="theme-browser" id="themeBrowser" style="display:none;">
+    <div class="theme-browser-header">
+      <span class="theme-browser-label">Browse by theme</span>
+      <span class="theme-active-tag" id="themeActiveTag" style="display:none;"></span>
+      <button class="btn btn-ghost" id="themeClearBtn" onclick="clearThemeFilter()" style="display:none;padding:4px 8px;font-size:12px;">✕ Clear theme</button>
+    </div>
+    <div class="theme-groups" id="themeGroups"></div>
   </div>
 
   <!-- TOOLBAR -->
@@ -626,6 +673,7 @@ const state = {
   savedIds: new Set(),
   showSavedOnly: false,
   showMediaOnly: false,
+  activeTheme: null,
   displayCount: 50,
   DISPLAY_STEP: 50,
   products: [],
@@ -638,6 +686,7 @@ const LS_SAVED  = 'tpc_saved_reviews';
 function bootstrap() {
   try { const s = JSON.parse(localStorage.getItem(LS_SAVED) || '[]'); s.forEach(id => state.savedIds.add(id)); } catch {}
   updateStatSaved();
+  buildThemeBrowser();
   const token = getToken();
   updateTokenBadge(token);
   if (token) {
@@ -846,6 +895,8 @@ async function startFetch() {
     applyFilters();
     updateStats();
     document.getElementById('toolbar').style.display = 'flex';
+    document.getElementById('themeBrowser').style.display = 'block';
+    buildThemeBrowser(); // rebuild with counts
     showToast(`Loaded ${state.reviews.length} reviews`);
   } catch (err) {
     container.innerHTML = `<div class="state-box"><div class="state-icon">⚠️</div><div class="state-title">Fetch failed</div><div class="state-sub">${escHtml(err.message)}<br><br>Check your API token and try again.</div></div>`;
@@ -857,6 +908,131 @@ async function startFetch() {
   }
 }
 
+
+// ═══════════════════════════════════════
+// THEME BROWSER
+// ═══════════════════════════════════════
+const THEMES = [
+  { group: 'Skin', themes: [
+    { label: 'Ageing & Fine Lines', keywords: ['ageing','aging','fine line','wrinkle','firmness','elasticity','sagging','collagen','anti-age','youthful','younger','crow','laugh line'] },
+    { label: 'Hydration & Dryness', keywords: ['hydrat','moisture','dry skin','dryness','dehydrat','plump','moisturis','moisturiz','water retention','supple','quench'] },
+    { label: 'Brightening & Glow', keywords: ['brighten','glow','radianc','whitening','lightening','dark spot','pigment','even skin','dull','luminous','complexion','tone'] },
+    { label: 'Eczema & Sensitivity', keywords: ['eczema','sensitive','redness','rash','itch','irritat','inflam','psoriasis','rosacea','flare','hives','atopic','allergic skin'] },
+    { label: 'Acne & Pores', keywords: ['acne','pimple','breakout','pore','oily','blemish','congestion','blackhead','whitehead','spot','cystic'] },
+    { label: 'UV & Sun Damage', keywords: ['uv','sun damage','sunburn','tan','photo','sun spot','freckle','dark patch','burn'] },
+  ]},
+  { group: 'Hair & Nails', themes: [
+    { label: 'Hair Loss', keywords: ['hair loss','hair fall','thinning','bald','alopecia','shedding','receding','less hair','losing hair','hair drop'] },
+    { label: 'Hair Growth', keywords: ['hair growth','regrow','new hair','hair density','thicker hair','hair volume','baby hair','hairline','grow back'] },
+    { label: 'Hair Strength', keywords: ['brittle hair','hair break','breakage','keratin','hair texture','soft hair','shiny hair','strengthen','frizz','scalp'] },
+    { label: 'Nails', keywords: ['nail','brittle nail','nail growth','nail strength','nail break'] },
+  ]},
+  { group: 'Weight', themes: [
+    { label: 'Weight Loss Results', keywords: ['weight loss','lost weight',' kg ','slim','leaner','body fat','waist','lighter','pounds','BMI','size down','fitting'] },
+    { label: 'Appetite & Cravings', keywords: ['craving','appetite','hungry','fullness','snack','binge','sugar craving','eating less','full longer','not hungry','suppress'] },
+    { label: 'Blood Sugar', keywords: ['blood sugar','glucose','diabet','insulin','sugar level','glp','glycemic','sugar spike','prediabet'] },
+  ]},
+  { group: 'Stress & Sleep', themes: [
+    { label: 'Stress & Anxiety', keywords: ['stress','anxiety','anxious','calm','relax','overwhelm','cortisol','tension','panic','worry','nervous','unwind'] },
+    { label: 'Sleep Quality', keywords: ['sleep','insomnia','rest','wake up','deep sleep','fall asleep','drowsy','bedtime','rested','night','toss','turn','groggy','nap'] },
+    { label: 'Mood & Focus', keywords: ['mood','focus','concentration','brain fog','mental clarity','happy','positive','alert','productive','mindful','motivated'] },
+  ]},
+  { group: 'Gut & Digestion', themes: [
+    { label: 'Bloating & Gas', keywords: ['bloat','gas','gassy','stomach','fullness','abdominal','wind','discomfort','tight stomach','tummy','distend'] },
+    { label: 'Constipation & Bowel', keywords: ['constipat','bowel','poop','stool','irregular','defecation','regularity','toilet','smooth bowel','movement'] },
+    { label: 'Gut Health', keywords: ['gut','digestion','digestive','probiotic','microbiome','leaky gut','stomach acid','bloat','ibs','colon','intestin'] },
+  ]},
+  { group: 'Immunity', themes: [
+    { label: 'Immunity & Sick Less', keywords: ['immun','sick','flu','cold','infection','fall sick','fever','virus','recover','cough','sneeze','run down'] },
+    { label: 'Fatigue & Energy', keywords: ['fatigue','tired','energy','exhausted','stamina','endurance','vitality','sluggish','lethargic','wired','alert','power'] },
+    { label: 'Inflammation', keywords: ['inflam','joint pain','sore','swelling','anti-inflam','pain relief','ache','stiff','tender'] },
+  ]},
+  { group: "Women's Health", themes: [
+    { label: 'Menopause', keywords: ['menopause','hot flash','hot flush','menopausal','perimenopause','night sweat','mood swing','hormonal','hormone'] },
+    { label: 'PCOS & Hormones', keywords: ['pcos','polycystic','hormonal balance','irregular period','menstrual','cycle','hormone imbalanc','fertility','ovulat'] },
+    { label: 'Vaginal & UTI', keywords: ['uti','vaginal','yeast infection','bacterial vaginosis','discharge','intimate','odor','odour','burning urination','itching'] },
+    { label: 'Period & PMS', keywords: ['period','pms','cramp','menstrual pain','period pain','bloating period','mood period','heavy period'] },
+  ]},
+  { group: 'Joints & Bones', themes: [
+    { label: 'Joint Pain', keywords: ['joint pain','joint','knee','hip','shoulder','ankle','mobility','stiffness','arthritis','cartilage','flexibility','click','crack'] },
+    { label: 'Bone Health', keywords: ['bone','density','osteoporos','calcium','fracture','bone health','mineral'] },
+    { label: 'Muscle Recovery', keywords: ['muscle','recovery','post-workout','sore muscle','workout','gym','exercise','strength','doms','after exercise'] },
+  ]},
+  { group: 'Cognitive', themes: [
+    { label: 'Brain & Memory', keywords: ['brain','cognitive','memory','focus','concentration','mental','sharp','clarity','recall','forget','remember','think'] },
+    { label: 'Anti-Ageing', keywords: ['longevity','anti-aging','anti-ageing','nmn','nad','cellular','reverse aging','lifespan','biologic','younger feel'] },
+  ]},
+];
+
+function buildThemeBrowser() {
+  const container = document.getElementById('themeGroups');
+  if (!container) return;
+
+  // Count matches per theme from loaded reviews
+  const counts = {};
+  THEMES.forEach((g, gi) => {
+    g.themes.forEach((t, ti) => {
+      const key = `${gi}-${ti}`;
+      counts[key] = state.reviews.filter(r => {
+        const body = (r.body || '').toLowerCase();
+        return t.keywords.some(kw => body.includes(kw.toLowerCase()));
+      }).length;
+    });
+  });
+
+  container.innerHTML = THEMES.map((g, gi) => {
+    const pills = g.themes.map((t, ti) => {
+      const key = `${gi}-${ti}`;
+      const count = counts[key] || 0;
+      if (state.reviews.length > 0 && count === 0) return ''; // hide empty themes
+      const isActive = state.activeTheme && state.activeTheme.label === t.label;
+      return `<button class="theme-pill${isActive ? ' active' : ''}"
+        data-gi="${gi}" data-ti="${ti}"
+        onclick="selectTheme(${gi},${ti})"
+        title="${count} matching reviews">
+        ${escHtml(t.label)}${state.reviews.length > 0 ? ` <span class="theme-count">${count}</span>` : ''}
+      </button>`;
+    }).join('');
+
+    if (!pills.trim()) return ''; // hide whole group if no themes visible
+    return `<div class="theme-group">
+      <span class="theme-group-label">${escHtml(g.group)}</span>
+      <div class="theme-pills">${pills}</div>
+    </div>`;
+  }).join('');
+}
+
+function selectTheme(gi, ti) {
+  const t = THEMES[gi].themes[ti];
+  // Toggle off if same theme clicked again
+  if (state.activeTheme && state.activeTheme.label === t.label) {
+    clearThemeFilter();
+    return;
+  }
+  state.activeTheme = { label: t.label, keywords: t.keywords };
+  // Update pills
+  document.querySelectorAll('.theme-pill').forEach(p => p.classList.remove('active'));
+  const pill = document.querySelector(`.theme-pill[data-gi="${gi}"][data-ti="${ti}"]`);
+  if (pill) pill.classList.add('active');
+  // Show active tag
+  const tag = document.getElementById('themeActiveTag');
+  if (tag) { tag.textContent = t.label; tag.style.display = 'inline-block'; }
+  const clearBtn = document.getElementById('themeClearBtn');
+  if (clearBtn) clearBtn.style.display = 'inline-flex';
+  // Clear text search and apply
+  document.getElementById('searchInput').value = '';
+  applyFilters();
+}
+
+function clearThemeFilter() {
+  state.activeTheme = null;
+  document.querySelectorAll('.theme-pill').forEach(p => p.classList.remove('active'));
+  const tag = document.getElementById('themeActiveTag');
+  if (tag) tag.style.display = 'none';
+  const clearBtn = document.getElementById('themeClearBtn');
+  if (clearBtn) clearBtn.style.display = 'none';
+  applyFilters();
+}
 
 // ═══════════════════════════════════════
 // FILTERS
@@ -874,7 +1050,9 @@ function applyFilters() {
     if (rating && String(r.rating) !== rating) return false;
     if (state.showSavedOnly && !state.savedIds.has(String(r.id))) return false;
     if (state.showMediaOnly && !(r.pictures && r.pictures.length > 0)) return false;
-    // Theme filter: review body must contain at least one keyword
+    if (state.activeTheme) {
+      const hasMatch = state.activeTheme.keywords.some(kw => body.includes(kw.toLowerCase()));
+      if (!hasMatch) return false;
     }
     return true;
   });
@@ -922,7 +1100,7 @@ function renderCard(r, query) {
   const name  = escHtml(r.reviewer?.name || 'Anonymous');
   const product = escHtml(r.product_title || r.product?.title || '');
   const date  = r.created_at ? new Date(r.created_at).toLocaleDateString('en-GB', { day:'2-digit', month:'short', year:'numeric' }) : '';
-  const body  = highlight(escHtml(r.body || ''), query);
+  const body  = highlightTheme(highlight(escHtml(r.body || ''), query));
   const stars = [1,2,3,4,5].map(i => `<span class="star ${i <= r.rating ? 'filled' : 'empty'}">${i <= r.rating ? '★' : '☆'}</span>`).join('');
 
   const photos = (r.pictures || []).filter(p => p.urls?.original || p.url);
@@ -1041,6 +1219,7 @@ function clearFilters() {
   document.getElementById('ratingFilter').value = '';
   state.showSavedOnly = false;
   state.showMediaOnly = false;
+  clearThemeFilter();
   document.getElementById('savedFilterBtn').classList.remove('btn-primary');
   document.getElementById('savedFilterBtn').classList.add('btn-ghost');
   document.getElementById('mediaFilterBtn').classList.remove('btn-primary');
@@ -1079,6 +1258,16 @@ function showToast(msg, isError = false) {
 function highlight(text, query) {
   if (!query) return text;
   return text.replace(new RegExp(`(${query.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')})`, 'gi'), '<mark>$1</mark>');
+}
+
+function highlightTheme(text) {
+  if (!state.activeTheme) return text;
+  let result = text;
+  state.activeTheme.keywords.forEach(kw => {
+    const escaped = kw.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+    result = result.replace(new RegExp(`(${escaped})`, 'gi'), '<mark class="theme-mark">$1</mark>');
+  });
+  return result;
 }
 
 function escHtml(s) {
