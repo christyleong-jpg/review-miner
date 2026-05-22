@@ -974,8 +974,8 @@ function buildThemeBrowser() {
     g.themes.forEach((t, ti) => {
       const key = `${gi}-${ti}`;
       counts[key] = state.reviews.filter(r => {
-        const body = (r.body || '').toLowerCase();
-        return t.keywords.some(kw => body.includes(kw.toLowerCase()));
+        const body = r.body || '';
+        return t.keywords.some(kw => matchesKeyword(body, kw));
       }).length;
     });
   });
@@ -1051,7 +1051,7 @@ function applyFilters() {
     if (state.showSavedOnly && !state.savedIds.has(String(r.id))) return false;
     if (state.showMediaOnly && !(r.pictures && r.pictures.length > 0)) return false;
     if (state.activeTheme) {
-      const hasMatch = state.activeTheme.keywords.some(kw => body.includes(kw.toLowerCase()));
+      const hasMatch = state.activeTheme.keywords.some(kw => matchesKeyword(r.body || '', kw));
       if (!hasMatch) return false;
     }
     return true;
@@ -1100,7 +1100,7 @@ function renderCard(r, query) {
   const name  = escHtml(r.reviewer?.name || 'Anonymous');
   const product = escHtml(r.product_title || r.product?.title || '');
   const date  = r.created_at ? new Date(r.created_at).toLocaleDateString('en-GB', { day:'2-digit', month:'short', year:'numeric' }) : '';
-  const body  = highlightTheme(highlight(escHtml(r.body || ''), query));
+  const body  = highlightTheme(highlight(escHtml(r.body || ''), query), r.body || '');
   const stars = [1,2,3,4,5].map(i => `<span class="star ${i <= r.rating ? 'filled' : 'empty'}">${i <= r.rating ? '★' : '☆'}</span>`).join('');
 
   const photos = (r.pictures || []).filter(p => p.urls?.original || p.url);
@@ -1255,17 +1255,55 @@ function showToast(msg, isError = false) {
   toastTimer = setTimeout(() => t.classList.remove('show'), 2500);
 }
 
+function stripProductNames(text) {
+  // Remove known product names from text before keyword matching/highlighting
+  // so keywords inside product names don't trigger false matches
+  let stripped = text;
+  state.products.forEach(p => {
+    if (!p.title) return;
+    const escaped = p.title.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+    stripped = stripped.replace(new RegExp(escaped, 'gi'), ' ');
+  });
+  // Also strip common TPC product name patterns that might not be in the product list
+  const productPatterns = [
+    /collagen glow berries/gi, /ashwa lychee/gi, /ginseng turmeric/gi,
+    /supergreens/gi, /sicilian orange/gi, /snow tomato/gi, /black cherry ceramide/gi,
+    /pomegranate hair/gi, /maca ashwa/gi, /lemon tea metabolic/gi,
+    /night burn saffron/gi, /daily longevity/gi, /collagen reforge/gi,
+    /lychee dream/gi, /superdetox/gi, /daily supergreens/gi,
+  ];
+  productPatterns.forEach(p => { stripped = stripped.replace(p, ' '); });
+  return stripped;
+}
+
+function matchesKeyword(text, kw) {
+  const cleanText = stripProductNames(text);
+  const escaped = kw.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+  const pattern = kw.includes(' ')
+    ? new RegExp(escaped, 'i')
+    : new RegExp(`(?<![a-zA-Z])${escaped}(?![a-zA-Z])`, 'i');
+  return pattern.test(cleanText);
+}
+
 function highlight(text, query) {
   if (!query) return text;
   return text.replace(new RegExp(`(${query.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')})`, 'gi'), '<mark>$1</mark>');
 }
 
-function highlightTheme(text) {
+function highlightTheme(text, rawBody) {
+  // rawBody is the original unescaped text -- used to find product name positions to skip
   if (!state.activeTheme) return text;
+  const cleanBody = stripProductNames(rawBody || '');
   let result = text;
   state.activeTheme.keywords.forEach(kw => {
     const escaped = kw.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-    result = result.replace(new RegExp(`(${escaped})`, 'gi'), '<mark class="theme-mark">$1</mark>');
+    const pattern = kw.includes(' ')
+      ? new RegExp(`(${escaped})`, 'gi')
+      : new RegExp(`(?<![a-zA-Z])(${escaped})(?![a-zA-Z])`, 'gi');
+    // Only highlight if keyword actually appears in the cleaned body (not just in product name)
+    if (pattern.test(cleanBody)) {
+      result = result.replace(pattern, '<mark class="theme-mark">$1</mark>');
+    }
   });
   return result;
 }
