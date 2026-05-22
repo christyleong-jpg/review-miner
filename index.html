@@ -1049,35 +1049,38 @@ function buildThemeBrowser() {
   const container = document.getElementById('themeGroups');
   container.innerHTML = THEMES.map(g => `
     <div class="theme-group">
-      <span class="theme-group-label">${g.group}</span>
+      <span class="theme-group-label">${escHtml(g.group)}</span>
       <div class="theme-pills">
-        ${g.themes.map(t => `
-          <button class="theme-pill" onclick="selectTheme(${JSON.stringify(g.group)}, ${JSON.stringify(t.label)}, ${JSON.stringify(t.keywords)})">${t.label}</button>
-        `).join('')}
+        ${g.themes.map((t, ti) => {
+          const gi = THEMES.indexOf(g);
+          return `<button class="theme-pill" data-gi="${gi}" data-ti="${ti}" onclick="selectTheme(${gi}, ${ti})">${escHtml(t.label)}</button>`;
+        }).join('')}
       </div>
     </div>
   `).join('');
 }
 
-function selectTheme(group, label, keywords) {
+function selectTheme(gi, ti) {
+  const group = THEMES[gi];
+  const t = group.themes[ti];
+
   // Toggle off if same
-  if (state.activeTheme && state.activeTheme.label === label) {
+  if (state.activeTheme && state.activeTheme.label === t.label) {
     clearThemeFilter();
     return;
   }
 
-  state.activeTheme = { group, label, keywords };
+  state.activeTheme = { group: group.group, label: t.label, keywords: t.keywords };
 
   // Update UI
   document.querySelectorAll('.theme-pill').forEach(p => p.classList.remove('active'));
-  event.target.classList.add('active');
+  document.querySelector(`.theme-pill[data-gi="${gi}"][data-ti="${ti}"]`).classList.add('active');
 
   const tag = document.getElementById('themeActiveTag');
-  tag.textContent = label;
+  tag.textContent = t.label;
   tag.style.display = 'inline-block';
   document.getElementById('themeClearBtn').style.display = 'inline-flex';
 
-  // Set search input and apply
   document.getElementById('searchInput').value = '';
   applyFilters();
 }
