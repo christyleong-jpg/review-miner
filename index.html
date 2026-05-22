@@ -471,8 +471,6 @@
   }
   .toast.show { transform: translateY(0); opacity: 1; }
 
-
-
   /* ── LOAD MORE ── */
   .load-more-bar { text-align: center; padding: 24px 0 8px; }
 
@@ -494,11 +492,6 @@
 <!-- TOP BAR -->
 <header class="topbar">
   <div class="topbar-left">
-    <svg width="24" height="24" viewBox="0 0 100 100" fill="none" xmlns="http://www.w3.org/2000/svg">
-      <circle cx="50" cy="44" r="36" stroke="#1C1B18" stroke-width="6"/>
-      <line x1="50" y1="20" x2="50" y2="85" stroke="#1C1B18" stroke-width="6" stroke-linecap="round"/>
-      <path d="M50 52 Q68 52 68 36" stroke="#1C1B18" stroke-width="6" stroke-linecap="round" fill="none"/>
-    </svg>
     <span class="brand-mark">TPC</span>
     <span class="topbar-title">Review Miner</span>
   </div>
@@ -545,9 +538,6 @@
 
   <!-- LOADING BAR -->
   <div class="loading-bar-wrap" id="loadingBar" style="display:none;"><div class="loading-bar"></div></div>
-
-  </div>
-
 
   <!-- TOOLBAR -->
   <div class="toolbar" id="toolbar" style="display:none;">
@@ -628,8 +618,8 @@ const state = {
   savedIds: new Set(),
   showSavedOnly: false,
   showMediaOnly: false,
-  displayCount: 20,
-  DISPLAY_STEP: 20,
+  displayCount: 50,
+  DISPLAY_STEP: 50,
   products: [],
   selectedProductIds: new Set(),
 };
@@ -848,8 +838,7 @@ async function startFetch() {
     applyFilters();
     updateStats();
     document.getElementById('toolbar').style.display = 'flex';
-    // Defer toast slightly so UI can update first
-    setTimeout(() => showToast(`Loaded ${state.reviews.length} reviews`), 50);
+    showToast(`Loaded ${state.reviews.length} reviews`);
   } catch (err) {
     container.innerHTML = `<div class="state-box"><div class="state-icon">⚠️</div><div class="state-title">Fetch failed</div><div class="state-sub">${escHtml(err.message)}<br><br>Check your API token and try again.</div></div>`;
     showToast('Fetch failed: ' + err.message, true);
@@ -861,20 +850,17 @@ async function startFetch() {
 }
 
 
-function escHtml(s) {
-  return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#39;');
-}
-
 // ═══════════════════════════════════════
 // FILTERS
+// ═══════════════════════════════════════
 function applyFilters() {
   const query  = document.getElementById('searchInput').value.trim().toLowerCase();
   const sent   = document.getElementById('sentimentFilter').value;
   const rating = document.getElementById('ratingFilter').value;
 
   state.filtered = state.reviews.filter(r => {
-    const body = (r.body || '').toLowerCase();
-    const name = (r.reviewer?.name || '').toLowerCase();
+    const body  = (r.body || '').toLowerCase();
+    const name  = (r.reviewer?.name || '').toLowerCase();
     if (query && !body.includes(query) && !name.includes(query)) return false;
     if (sent === 'positive' && r.rating < 4) return false;
     if (sent === 'negative' && r.rating >= 4) return false;
@@ -929,6 +915,7 @@ function renderCard(r, query) {
   const date  = r.created_at ? new Date(r.created_at).toLocaleDateString('en-GB', { day:'2-digit', month:'short', year:'numeric' }) : '';
   const body  = highlight(escHtml(r.body || ''), query);
   const stars = [1,2,3,4,5].map(i => `<span class="star ${i <= r.rating ? 'filled' : 'empty'}">${i <= r.rating ? '★' : '☆'}</span>`).join('');
+
   const photos = (r.pictures || []).filter(p => p.urls?.original || p.url);
   const photosHtml = photos.length > 0
     ? `<div class="review-photos">${photos.map(p => {
@@ -958,7 +945,7 @@ function renderCard(r, query) {
           <button class="icon-btn" onclick="copyPlain(${r.id}, this)" title="Copy plain text">
             <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>
           </button>
-          <button class="icon-btn" onclick="copyFormatted(${r.id}, this)" title="Copy as testimonial">
+          <button class="icon-btn" onclick="copyFormatted(${r.id}, this)" title='Copy as testimonial'>
             <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
           </button>
         </div>
@@ -968,6 +955,7 @@ function renderCard(r, query) {
 
 // ═══════════════════════════════════════
 // SAVE / COPY
+// ═══════════════════════════════════════
 function toggleSave(id) {
   const sid = String(id);
   state.savedIds.has(sid) ? state.savedIds.delete(sid) : state.savedIds.add(sid);
@@ -1008,15 +996,8 @@ function flashCopy(btn) {
 }
 
 // ═══════════════════════════════════════
-// MISC UI
-function toggleSavedFilter() {
-  state.showSavedOnly = !state.showSavedOnly;
-  const btn = document.getElementById('savedFilterBtn');
-  btn.classList.toggle('btn-primary', state.showSavedOnly);
-  btn.classList.toggle('btn-ghost', !state.showSavedOnly);
-  applyFilters();
-}
-
+// MISC
+// ═══════════════════════════════════════
 function toggleMediaFilter() {
   state.showMediaOnly = !state.showMediaOnly;
   const btn = document.getElementById('mediaFilterBtn');
@@ -1036,6 +1017,14 @@ function closeLightbox() {
 }
 
 document.addEventListener('keydown', e => { if (e.key === 'Escape') closeLightbox(); });
+
+function toggleSavedFilter() {
+  state.showSavedOnly = !state.showSavedOnly;
+  const btn = document.getElementById('savedFilterBtn');
+  btn.classList.toggle('btn-primary', state.showSavedOnly);
+  btn.classList.toggle('btn-ghost', !state.showSavedOnly);
+  applyFilters();
+}
 
 function clearFilters() {
   document.getElementById('searchInput').value = '';
@@ -1062,7 +1051,8 @@ function updateStats() {
 }
 
 function updateStatSaved() {
-  document.getElementById('statSaved').textContent = state.reviews.length > 0 ? state.savedIds.size || '—' : '—';
+  const count = state.reviews.length > 0 ? state.savedIds.size || '—' : '—';
+  document.getElementById('statSaved').textContent = count;
 }
 
 function setLoading(on) { document.getElementById('loadingBar').style.display = on ? 'block' : 'none'; }
@@ -1080,6 +1070,10 @@ function showToast(msg, isError = false) {
 function highlight(text, query) {
   if (!query) return text;
   return text.replace(new RegExp(`(${query.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')})`, 'gi'), '<mark>$1</mark>');
+}
+
+function escHtml(s) {
+  return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#39;');
 }
 
 
